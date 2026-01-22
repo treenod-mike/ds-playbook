@@ -224,6 +224,8 @@ class GraphTraversal:
         """
         Get term ID by term name
 
+        If multiple terms exist, prefer the one that has relations.
+
         Args:
             term: Term name to look up
 
@@ -231,15 +233,34 @@ class GraphTraversal:
             Term UUID or None if not found
         """
         try:
+            # Get all matching terms
             result = self.client.table(self.table_terms)\
                 .select("id")\
                 .eq("term", term)\
-                .limit(1)\
                 .execute()
 
-            if result.data:
+            if not result.data:
+                return None
+
+            # If only one, return it
+            if len(result.data) == 1:
                 return result.data[0]['id']
-            return None
+
+            # Multiple matches - prefer one with relations
+            for term_data in result.data:
+                term_id = term_data['id']
+                # Check if this term has any relations
+                rel_check = self.client.table(self.table_relations)\
+                    .select("id", count='exact')\
+                    .or_(f"source_term_id.eq.{term_id},target_term_id.eq.{term_id}")\
+                    .limit(1)\
+                    .execute()
+
+                if rel_check.count and rel_check.count > 0:
+                    return term_id
+
+            # Fallback to first match
+            return result.data[0]['id']
 
         except Exception as e:
             logger.error(f"Error getting term ID for '{term}': {e}")
@@ -286,22 +307,17 @@ class GraphTraversal:
             List of relation dictionaries with target term data
         """
         try:
-            # Query relations with joined target term data
+            # Query relations first
             result = self.client.table(self.table_relations)\
-                .select("""
-                    target_term_id,
-                    predicate,
-                    confidence,
-                    playbook_semantic_terms!target_term_id(term, category)
-                """)\
+                .select("target_term_id, predicate, confidence")\
                 .eq("source_term_id", term_id)\
                 .gte("confidence", min_confidence)\
                 .execute()
 
-            # Flatten the joined data structure
+            # Get target term data separately
             relations = []
             for rel in result.data:
-                target_data = rel.get('playbook_semantic_terms')
+                target_data = self._get_term_data(rel['target_term_id'])
                 if target_data:
                     relations.append({
                         'target_term_id': rel['target_term_id'],
