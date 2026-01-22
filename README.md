@@ -12,6 +12,7 @@ Playbook Nexus는 전통적인 RAG를 넘어선 **GraphRAG(Graph-based Retrieval
 - [Phase 2: Knowledge Graph Construction](#phase-2-knowledge-graph-construction)
   - [핵심 개선사항 (2025-01-21)](#핵심-개선사항-2025-01-21-update-)
 - [Phase 3: Graph Traversal](#phase-3-graph-traversal-그래프-탐색) 🆕
+- [FastAPI 서버 배포](#-fastapi-서버-배포) 🆕
 - [설치 및 설정](#설치-및-설정)
 - [사용법](#사용법)
 - [데이터베이스 스키마](#데이터베이스-스키마)
@@ -1139,6 +1140,93 @@ python3
 - **Ego Network**: 1-hop 이웃 추출
 
 **자세한 내용**: [`docs/TRAVERSAL_DESIGN.md`](docs/TRAVERSAL_DESIGN.md)
+
+---
+
+### 🌐 FastAPI 서버 배포
+
+**NEW!** REST API를 통해 지식 그래프를 외부 플랫폼에서 활용할 수 있습니다.
+
+#### 로컬 실행
+
+```bash
+# API 서버 시작
+python3 -m uvicorn src.api.main:app --host 0.0.0.0 --port 8000
+
+# 접속: http://localhost:8000
+# API 문서: http://localhost:8000/docs
+```
+
+#### 제공 API 엔드포인트
+
+```bash
+GET  /                        # API 정보
+GET  /api/health             # 헬스 체크 + Supabase 연결 확인
+GET  /api/terms              # 시맨틱 용어 조회
+POST /api/impact-analysis    # DFS 기반 영향 범위 분석
+POST /api/subgraph           # 특정 노드 주변 서브그래프 추출
+GET  /api/shortest-path      # 두 용어 간 최단 경로 탐색
+```
+
+#### 클라우드 배포 (외부 접근 가능)
+
+**Option 1: Railway (권장)**
+```bash
+# Railway CLI 설치
+npm install -g @railway/cli
+
+# 로그인 및 배포
+railway login
+railway init
+railway up
+
+# 환경변수 설정 (Railway 대시보드)
+# - SUPABASE_URL
+# - SUPABASE_KEY
+```
+
+**Option 2: Render (무료)**
+1. https://render.com 접속
+2. GitHub 저장소 연결: `treenod-mike/ds-playbook`
+3. "New Web Service" → 자동으로 `render.yaml` 감지
+4. 환경변수 추가 후 배포
+
+**Option 3: Docker**
+```bash
+# 이미지 빌드
+docker build -t playbook-nexus-api .
+
+# 실행
+docker run -p 8000:8000 \
+  -e SUPABASE_URL="your-url" \
+  -e SUPABASE_KEY="your-key" \
+  playbook-nexus-api
+```
+
+**Option 4: ngrok (테스트용)**
+```bash
+# 터미널 1: API 서버 실행
+python3 -m uvicorn src.api.main:app --port 8000
+
+# 터미널 2: 외부 접근 허용
+ngrok http 8000
+# → https://abc-123.ngrok-free.app 형태의 URL 생성
+```
+
+#### API 사용 예시
+
+```bash
+# 헬스 체크
+curl https://your-api-url.com/api/health
+
+# 영향 분석
+curl -X POST https://your-api-url.com/api/impact-analysis \
+  -H "Content-Type: application/json" \
+  -d '{"source_node": "스테이지", "max_depth": 3}'
+
+# 최단 경로
+curl "https://your-api-url.com/api/shortest-path?start=폭탄&end=체리"
+```
 
 ---
 
