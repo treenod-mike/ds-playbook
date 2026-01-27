@@ -1,4 +1,129 @@
-# 핵심 문제 3가지 수정 완료
+# 핵심 문제 수정 이력
+
+## 최신 업데이트: 2026-01-27 - Hub Node Problem 해결
+
+### 4. ✅ 관계 가중치 및 허브 노드 분산 로직 구현
+
+**목적**: "스테이지", "유저" 같은 일반 명사에 모든 관계가 집중되는 Hub Node Problem 해결
+
+#### 4A. DB 스키마 확장 (`migrations/add_relation_weights.sql`)
+
+**playbook_semantic_relations 테이블**:
+- `relation_type` (ENUM: 'CORE', 'FLOW') - 관계 유형
+- `weight` (INT: 1-5) - 그래프 탐색 우선순위
+  - 1: 최고 우선순위 (CORE 관계)
+  - 2: 높음 (주요 FLOW 관계)
+  - 3: 중간 (일반 FLOW 관계)
+  - 4: 낮음 (부차적 FLOW 관계)
+  - 5: 최저 (Optional)
+
+**playbook_semantic_terms 테이블**:
+- `is_abstract` (BOOLEAN) - 일반 명사 여부
+- `specificity_score` (FLOAT: 0.0-1.0) - 구체성 점수
+  - 0.2: 매우 추상적 ("스테이지", "유저")
+  - 0.5: 중간 (복합어, "턴 릴레이")
+  - 0.7: 구체적 (수식어 포함, "보스 스테이지")
+  - 1.0: 매우 구체적 (고유 명사)
+
+#### 4B. RelationClassifier 모듈 (`src/core/rules/relation_classifier.py`)
+
+**CORE Predicates** (구조적 정의, weight=1):
+- contains, consists_of, composed_of, includes, requires, is_a, part_of, has, belongs_to
+
+**FLOW Predicates** (인과/흐름):
+- **High priority (weight=2)**: guarantees, targets, sells
+- **Medium priority (weight=3)**: increases, decreases, causes, triggers, consumes, produces, rewards, boosts, accelerates, generates, performs, converts_to, acquires
+- **Low priority (weight=4)**: promotes, utilizes, induces, influences
+
+**Abstract Term Detection**:
+```python
+ABSTRACT_TERMS = {
+    '스테이지', 'stage', '유저', 'user', '이벤트', 'event',
+    '아이템', 'item', '보상', 'reward', '콘텐츠', 'content',
+    '시스템', 'system', '게임', 'game', '플레이어', 'player'
+}
+
+SPECIFICITY_MODIFIERS = {
+    '보스', '일반', '특수', '한정', '고난이도', '저난이도',
+    '신규', '기존', '복귀', '이탈', '활성',
+    '무료', '유료', '프리미엄',
+    'boss', 'special', 'limited', 'new', 'returning'
+}
+```
+
+**Specificity Calculation Logic**:
+1. 추상 명사 + 수식어 → specificity=0.7 (e.g., "보스 스테이지")
+2. 추상 명사 (복합어) → specificity=0.5 (e.g., "턴 릴레이")
+3. 추상 명사 (단독) → specificity=0.2 (e.g., "스테이지")
+4. 구체적 명사 → specificity=1.0
+
+#### 4C. Ontology Builder 통합 (`src/core/processors/ontology_builder.py`)
+
+**Hub Node Filtering** (lines 336-347):
+```python
+# [HUB FIX] Check if relation should be filtered due to abstract source term
+if RelationClassifier.should_filter_abstract_relation(
+    source_term['term'],
+    target_term['term'],
+    prefer_specific=True
+):
+    skipped_count['abstract_source_filtered'] += 1
+    logger.debug(
+        f"[HUB FILTER] {source_term['term']} -{predicate}-> {target_term['term']} "
+        f"(source term is too abstract)"
+    )
+    continue
+```
+
+**Relation Classification** (lines 348-361):
+```python
+# [WEIGHT] Classify relation and assign type/weight
+relation_type, weight = RelationClassifier.classify_relation(predicate)
+
+validated_relations.append({
+    'source_term_id': source_term['id'],
+    'predicate': predicate,
+    'target_term_id': target_term['id'],
+    'confidence': confidence,
+    'relation_type': relation_type,  # CORE or FLOW
+    'weight': weight,  # 1-5
+    'evidence_chunk_id': None,
+    'evidence': evidence
+})
+```
+
+#### 4D. 기대 효과
+
+**Before (허브 노드 문제)**:
+- "스테이지" → 170+ 관계 (모든 스테이지 관련 내용 집중)
+- 그래프 탐색 시 노이즈 과다
+- 추상적 관계가 구체적 관계와 동일 가중치
+
+**After (허브 노드 분산)**:
+- "스테이지" (단독) → 필터링됨
+- "보스 스테이지", "한정 스테이지" → 우선 선택
+- CORE 관계 (weight=1) 우선 탐색
+- 추상적 관계 (weight=4) 후순위
+
+#### 4E. 마이그레이션 방법
+
+```bash
+# 1. Supabase SQL Editor에서 실행
+# migrations/add_relation_weights.sql
+
+# 2. 기존 관계 삭제 (선택적)
+# DELETE FROM playbook_semantic_relations;
+
+# 3. Phase 2 재실행
+python3 run_phase2_only.py
+
+# 4. 결과 확인
+# SELECT relation_type, weight, COUNT(*)
+# FROM playbook_semantic_relations
+# GROUP BY relation_type, weight;
+```
+
+---
 
 ## 수정 날짜: 2025-01-21
 

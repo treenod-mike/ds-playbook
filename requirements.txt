@@ -7,6 +7,9 @@ tqdm==4.66.1
 # OpenAI
 openai>=1.30.0
 
+# Anthropic Claude
+anthropic>=0.39.0
+
 # Supabase (latest version)
 supabase>=2.9.0
 

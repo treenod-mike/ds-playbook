@@ -22,6 +22,7 @@ import json
 from src.shared.config import Config
 from src.shared.utils import setup_logging
 from src.core.loaders.supabase_loader import SupabaseLoader
+from src.core.rules.relation_classifier import RelationClassifier
 
 logger = setup_logging()
 
@@ -332,12 +333,30 @@ class OntologyBuilder:
                     )
                     continue
 
+                # [HUB FIX] Check if relation should be filtered due to abstract source term
+                if RelationClassifier.should_filter_abstract_relation(
+                    source_term['term'],
+                    target_term['term'],
+                    prefer_specific=True
+                ):
+                    skipped_count['abstract_source_filtered'] += 1
+                    logger.debug(
+                        f"[HUB FILTER] {source_term['term']} -{predicate}-> {target_term['term']} "
+                        f"(source term is too abstract)"
+                    )
+                    continue
+
+                # [WEIGHT] Classify relation and assign type/weight
+                relation_type, weight = RelationClassifier.classify_relation(predicate)
+
                 # Prepare validated relation for insertion
                 validated_relations.append({
                     'source_term_id': source_term['id'],
                     'predicate': predicate,
                     'target_term_id': target_term['id'],
                     'confidence': confidence,
+                    'relation_type': relation_type,  # CORE or FLOW
+                    'weight': weight,  # 1-5
                     'evidence_chunk_id': None,  # Can be enriched later if needed
                     'evidence': evidence  # [FIX 4] LLM이 추출한 근거 텍스트 저장
                 })

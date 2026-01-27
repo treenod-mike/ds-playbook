@@ -231,7 +231,38 @@ playbook_ontology_rules 로드 (10개 게임 규칙)
 3. ✅ **Confidence**: 0.95 > 0.5 (threshold)
 4. → **통과**: playbook_semantic_relations에 저장
 
-### 핵심 개선사항 (2025-01-21 Update) ⭐
+### 핵심 개선사항 ⭐
+
+#### 최신 업데이트 (2026-01-27): Hub Node Problem 해결 🔥
+
+**배경**: "스테이지", "유저" 같은 일반 명사에 모든 관계가 집중되어 그래프 탐색 시 노이즈 증가
+
+**해결책**:
+1. **관계 가중치 시스템** (relation_type, weight)
+   - CORE 관계 (contains, is_a) → weight=1 (최우선)
+   - FLOW 관계 (causes, triggers) → weight=2-4 (중요도별)
+
+2. **노드 구체성 점수** (is_abstract, specificity_score)
+   - "스테이지" (단독) → specificity=0.2 (필터링)
+   - "보스 스테이지" → specificity=0.7 (우선 선택)
+
+3. **허브 노드 필터링**
+   - 추상적 소스 노드(specificity < 0.3)의 관계 자동 필터링
+   - 구체적 용어를 우선 선택하여 관계 생성
+
+**구현 파일**:
+- [relation_classifier.py](src/core/rules/relation_classifier.py) - 분류 로직
+- [ontology_builder.py](src/core/processors/ontology_builder.py:336-361) - 통합 코드
+- [add_relation_weights.sql](migrations/add_relation_weights.sql) - DB 스키마
+
+**효과**:
+- "스테이지" 170+ 관계 → 구체적 스테이지 유형으로 분산
+- 그래프 탐색 품질 대폭 향상
+- Weight 기반 우선순위 탐색 가능
+
+---
+
+#### Phase 2 개선사항 (2025-01-21)
 
 #### 1. Definition Fallback Logic
 **파일**: `semantic_processor.py` (lines 511-532)

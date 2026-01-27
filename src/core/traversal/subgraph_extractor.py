@@ -89,6 +89,7 @@ class SubgraphExtractor:
         edges: List[Dict] = []
         visited: Set[str] = set()
         queue = deque([(center_id, 0)])
+        traversal_log: List[str] = []  # Track all traversal steps
 
         while queue:
             current_id, depth = queue.popleft()
@@ -105,35 +106,87 @@ class SubgraphExtractor:
             node_data = self._get_term_data(current_id)
             if node_data:
                 nodes[current_id] = node_data
+                current_term = node_data['term']
 
-            # Get outgoing edges
+                # Log node visit
+                if depth == 0:
+                    traversal_log.append(f"🎯 시작: {current_term} (중심 노드)")
+                else:
+                    traversal_log.append(f"📍 Hop {depth}: {current_term} 방문")
+
+            # Get outgoing AND incoming edges for bidirectional traversal
             out_relations = self._get_outgoing_relations(
                 current_id,
                 min_confidence
             )
+            in_relations = self._get_incoming_relations(
+                current_id,
+                min_confidence
+            )
 
-            for rel in out_relations:
-                # Filter by predicate if specified
-                if predicates and rel['predicate'] not in predicates:
+            all_relations = out_relations + in_relations
+
+            if not all_relations and depth == 0:
+                traversal_log.append(f"  ⚠️ {current_term}에 연결된 관계가 없습니다")
+
+            for rel in all_relations:
+                # Determine next node (outgoing: target, incoming: source)
+                if 'target_term_id' in rel and 'source_term_id' not in rel:
+                    # Outgoing relation
+                    next_id = rel['target_term_id']
+                    edge_source = current_id
+                    edge_target = next_id
+                elif 'source_term_id' in rel and 'target_term_id' not in rel:
+                    # Incoming relation
+                    next_id = rel['source_term_id']
+                    edge_source = next_id
+                    edge_target = current_id
+                else:
+                    # Skip malformed relation
                     continue
 
-                # Add edge
+                # Get next term name for logging
+                next_data = self._get_term_data(next_id)
+                next_term = next_data['term'] if next_data else next_id
+
+                # Filter by predicate if specified
+                if predicates and rel['predicate'] not in predicates:
+                    traversal_log.append(f"  ⏭️ {next_term}: predicate '{rel['predicate']}' 필터링됨")
+                    continue
+
+                # Check confidence
+                if rel['confidence'] < min_confidence:
+                    traversal_log.append(f"  ⏭️ {next_term}: 신뢰도 {rel['confidence']:.2f} < {min_confidence}")
+                    continue
+
+                # Add edge (preserve original direction)
                 edges.append({
-                    'source': current_id,
-                    'target': rel['target_term_id'],
+                    'source': edge_source,
+                    'target': edge_target,
                     'predicate': rel['predicate'],
                     'confidence': rel['confidence']
                 })
 
-                # Queue target node for next level
+                # Log edge discovery
+                if node_data and next_data:
+                    source_term = node_data['term']
+                    if edge_source == current_id:
+                        traversal_log.append(f"  ✅ {source_term} → [{rel['predicate']}] → {next_term} (신뢰도: {rel['confidence']:.2f})")
+                    else:
+                        traversal_log.append(f"  ✅ {next_term} → [{rel['predicate']}] → {source_term} (신뢰도: {rel['confidence']:.2f})")
+
+                # Queue next node for next level
                 if depth < radius:
-                    queue.append((rel['target_term_id'], depth + 1))
+                    queue.append((next_id, depth + 1))
+                else:
+                    traversal_log.append(f"  ⏭️ {next_term}: radius 제한 도달 (depth {depth + 1} > {radius})")
 
         logger.info(f"Extracted subgraph: {len(nodes)} nodes, {len(edges)} edges")
 
         return {
             'nodes': list(nodes.values()),
-            'edges': edges
+            'edges': edges,
+            'traversal_log': traversal_log  # Add traversal log
         }
 
     def extract_ego_network(
@@ -298,17 +351,51 @@ class SubgraphExtractor:
             return {'nodes': [], 'edges': []}
 
     def _get_term_id(self, term: str) -> Optional[str]:
-        """Get term ID by term name"""
+        """
+        Get term ID by term name
+
+        If multiple terms with same name exist, prefer the one with most relations
+        """
         try:
+            # Get all terms with this name
             result = self.client.table(self.table_terms)\
                 .select("id")\
                 .eq("term", term)\
-                .limit(1)\
                 .execute()
 
-            if result.data:
+            if not result.data:
+                return None
+
+            # If only one term, return it
+            if len(result.data) == 1:
                 return result.data[0]['id']
-            return None
+
+            # Multiple terms found - prefer one with relations
+            logger.debug(f"Found {len(result.data)} terms named '{term}', selecting one with relations")
+
+            for term_data in result.data:
+                term_id = term_data['id']
+
+                # Check if this term has any relations
+                out_rels = self.client.table(self.table_relations)\
+                    .select("id")\
+                    .eq("source_term_id", term_id)\
+                    .limit(1)\
+                    .execute()
+
+                in_rels = self.client.table(self.table_relations)\
+                    .select("id")\
+                    .eq("target_term_id", term_id)\
+                    .limit(1)\
+                    .execute()
+
+                if out_rels.data or in_rels.data:
+                    logger.debug(f"Selected term ID {term_id} (has relations)")
+                    return term_id
+
+            # No term with relations found, return first one
+            logger.warning(f"No term named '{term}' has relations, returning first one")
+            return result.data[0]['id']
 
         except Exception as e:
             logger.error(f"Error getting term ID for '{term}': {e}")

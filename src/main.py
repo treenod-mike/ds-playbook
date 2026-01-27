@@ -132,28 +132,27 @@ class Pipeline:
             semantic_terms = result.get('semantic_terms', [])
             semantic_time = time.time() - step_start
 
-            if not chunks:
-                logger.warning(f"No chunks created for page {page_id}")
-                # Still consider it success if document was saved
-                return True
-
             logger.info(
                 f"Created {len(chunks)} chunks and {len(semantic_terms)} semantic terms "
                 f"for page {page_id} ({semantic_time:.2f}s)"
             )
 
-            # Step 5: Load chunks into Supabase
-            step_start = time.time()
-            loaded_count = self.supabase.load_chunks(chunks)
-            chunk_load_time = time.time() - step_start
+            # Step 5: Load chunks into Supabase (if any)
+            loaded_count = 0
+            if chunks:
+                step_start = time.time()
+                loaded_count = self.supabase.load_chunks(chunks)
+                chunk_load_time = time.time() - step_start
 
-            if loaded_count == 0:
-                logger.error(f"Failed to load chunks for page {page_id}")
-                return False
+                if loaded_count == 0:
+                    logger.error(f"Failed to load chunks for page {page_id}")
+                    return False
 
-            self.checkpoint.add_chunks(loaded_count)
+                self.checkpoint.add_chunks(loaded_count)
+            else:
+                logger.warning(f"No chunks created for page {page_id} (content too short or empty)")
 
-            # Step 6: Load semantic terms into Supabase
+            # Step 6: Load semantic terms into Supabase (even if no chunks)
             terms_loaded = 0
             if semantic_terms:
                 step_start = time.time()
@@ -179,7 +178,7 @@ class Pipeline:
         page_ids_file: str = None,
         skip_existing: bool = True,
         max_pages: Optional[int] = None,
-        run_phase2: bool = False
+        run_phase2: bool = True  # Changed default to True
     ):
         """
         Run the complete pipeline
