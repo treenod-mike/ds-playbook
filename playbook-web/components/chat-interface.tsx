@@ -97,13 +97,6 @@ export default function ChatInterface() {
     }
   }
 
-  const suggestionQuestions = [
-    '스테이지에 대해 설명해줘',
-    '미션은 어떤 역할을 하나요?',
-    '그룹 폭탄모으기는 뭐야?',
-    '여행 동호회에 대해 알려줘',
-  ]
-
   return (
     <Card className="flex flex-col shadow-lg h-full w-full">
         {/* Header */}
@@ -134,18 +127,9 @@ export default function ChatInterface() {
                 <p className="text-sm text-muted-foreground max-w-md">
                   지식 그래프 기반으로 게임 콘텐츠에 대해 질문해보세요
                 </p>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3 max-w-2xl w-full">
-                {suggestionQuestions.map((question, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => handleSend(question)}
-                    className="bg-white border border-slate-200 rounded-xl p-4 text-left hover:border-blue-300 hover:bg-blue-50 transition-all shadow-sm hover:shadow-md"
-                  >
-                    <p className="text-sm font-medium text-slate-700">{question}</p>
-                  </button>
-                ))}
+                <p className="text-xs text-slate-500 mt-2">
+                  현재 DB: 1,733개 문서 | 11,971개 용어 | 104개 관계
+                </p>
               </div>
             </div>
           ) : (
