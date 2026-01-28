@@ -389,28 +389,36 @@ class SubgraphExtractor:
             if len(result.data) == 1:
                 return result.data[0]['id']
 
-            # Multiple terms found - prefer one with relations
-            logger.debug(f"Found {len(result.data)} terms named '{term}', selecting one with relations")
+            # Multiple terms found - select one with MOST relations
+            logger.debug(f"Found {len(result.data)} terms named '{term}', selecting one with most relations")
+
+            best_term_id = None
+            max_relations = 0
 
             for term_data in result.data:
                 term_id = term_data['id']
 
-                # Check if this term has any relations
+                # Count total relations (both outgoing and incoming)
                 out_rels = self.client.table(self.table_relations)\
-                    .select("id")\
+                    .select("id", count="exact")\
                     .eq("source_term_id", term_id)\
-                    .limit(1)\
                     .execute()
 
                 in_rels = self.client.table(self.table_relations)\
-                    .select("id")\
+                    .select("id", count="exact")\
                     .eq("target_term_id", term_id)\
-                    .limit(1)\
                     .execute()
 
-                if out_rels.data or in_rels.data:
-                    logger.debug(f"Selected term ID {term_id} (has relations)")
-                    return term_id
+                total_relations = out_rels.count + in_rels.count
+
+                if total_relations > max_relations:
+                    max_relations = total_relations
+                    best_term_id = term_id
+                    logger.debug(f"Found better candidate: {term_id} with {total_relations} relations")
+
+            if best_term_id:
+                logger.info(f"Selected term ID {best_term_id} with {max_relations} relations for '{term}'")
+                return best_term_id
 
             # No term with relations found, return first one
             logger.warning(f"No term named '{term}' has relations, returning first one")
