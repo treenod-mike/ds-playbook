@@ -128,7 +128,7 @@ export default function ChatInterface() {
                   지식 그래프 기반으로 게임 콘텐츠에 대해 질문해보세요
                 </p>
                 <p className="text-xs text-slate-500 mt-2">
-                  현재 DB: 1,733개 문서 | 11,971개 용어 | 104개 관계
+                  현재 DB: 2,246개 문서 | 15,056개 용어 | 202개 관계
                 </p>
               </div>
             </div>
