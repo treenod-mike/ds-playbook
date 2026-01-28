@@ -365,9 +365,9 @@ def main():
         help='Reset checkpoint before starting'
     )
     parser.add_argument(
-        '--phase2',
+        '--no-phase2',
         action='store_true',
-        help='Run Phase 2 (Knowledge Graph Construction) after Phase 1'
+        help='Skip Phase 2 (Knowledge Graph Construction) after Phase 1'
     )
 
     args = parser.parse_args()
@@ -386,7 +386,7 @@ def main():
             page_ids_file=args.page_ids_file,
             skip_existing=not args.no_skip_existing,
             max_pages=args.max_pages,
-            run_phase2=args.phase2
+            run_phase2=not args.no_phase2  # Default True, unless --no-phase2 is specified
         )
     except KeyboardInterrupt:
         logger.info("\nPipeline interrupted by user")
