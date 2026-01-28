@@ -397,6 +397,20 @@ async def chat(request: ChatRequest):
                 search_process["edges_count"] = len(subgraph['edges'])
                 search_process["traversal_log"] = subgraph.get('traversal_log', [])
 
+                # Check if no relations found
+                if len(subgraph['edges']) == 0:
+                    search_process["steps"].append({
+                        "step": 6,
+                        "name": "⚠️ 관계 데이터 없음",
+                        "description": f"'{center_term}' 용어는 DB에 존재하지만, 연결된 관계가 0개입니다. Phase 2를 재실행하거나 다른 용어를 시도해보세요."
+                    })
+
+                    # Return early with no relations message
+                    return {
+                        "message": f"❌ '{center_term}' 용어는 DB에 {len(subgraph['nodes'])}개 인스턴스가 존재하지만, 연결된 관계가 없습니다.\n\n**가능한 원인:**\n- Phase 2에서 이 용어와 관련된 관계가 추출되지 않음\n- LLM이 관계를 생성했지만 온톨로지 룰 검증에서 필터링됨\n- 추상적인 용어로 인식되어 허브 노드 필터링됨\n\n**해결 방법:**\n1. `python3 run_phase2_only.py`로 Phase 2 재실행\n2. 더 구체적인 용어로 검색 (예: '보스 스테이지', '한정 이벤트' 등)\n3. 관계가 있는 다른 용어 시도",
+                        "search_process": search_process
+                    }
+
                 search_process["steps"].append({
                     "step": 6,
                     "name": "그래프 추출 완료",
@@ -483,6 +497,20 @@ async def chat(request: ChatRequest):
                     graph_context += f"\n**관계** (실제 데이터에서 추출, 중복 제거, {len(unique_edges)}개):\n"
                     for edge in list(unique_edges.values())[:20]:  # Show max 20 unique edges
                         graph_context += f"- {edge['source']} → {edge['predicate']} → {edge['target']} (신뢰도: {edge['confidence']:.2f})\n"
+
+            else:
+                # No terms found in DB
+                search_process["steps"].append({
+                    "step": 5,
+                    "name": "❌ 용어를 찾을 수 없음",
+                    "description": f"질문에서 언급된 용어가 DB에 존재하지 않습니다. 다른 용어로 시도해보세요."
+                })
+
+                # Return early with not found message
+                return {
+                    "message": f"❌ 질문하신 용어가 DB에 존재하지 않습니다.\n\n**가능한 원인:**\n- 해당 용어가 Phase 1에서 추출되지 않음\n- 오타 또는 다른 표현 사용 (예: '스테이지' vs '단계')\n- 아직 처리되지 않은 문서에 포함된 내용\n\n**해결 방법:**\n1. 다른 표현으로 시도 (예: '미션', '그룹', '클로버' 등)\n2. DB에 있는 용어 확인: `python3 scripts/check_term_relations.py <용어>`\n3. 더 많은 문서 처리: `python3 run_full_pipeline.py --max-pages 100`",
+                    "search_process": search_process
+                }
 
         # Build system prompt
         if graph_context:
