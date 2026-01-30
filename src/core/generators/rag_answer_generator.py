@@ -21,8 +21,8 @@ logger = logging.getLogger(__name__)
 @dataclass
 class SearchResult:
     """검색 결과 데이터 구조"""
-    chunk_id: int
-    doc_id: int
+    chunk_id: Any  # UUID or int
+    doc_id: Any  # TEXT or int
     doc_title: str
     content: str
     similarity: float
