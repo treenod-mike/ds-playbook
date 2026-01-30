@@ -346,19 +346,14 @@ class OntologyBuilder:
                     )
                     continue
 
-                # [WEIGHT] Classify relation and assign type/weight
-                relation_type, weight = RelationClassifier.classify_relation(predicate)
-
                 # Prepare validated relation for insertion
                 validated_relations.append({
                     'source_term_id': source_term['id'],
                     'predicate': predicate,
                     'target_term_id': target_term['id'],
                     'confidence': confidence,
-                    'relation_type': relation_type,  # CORE or FLOW
-                    'weight': weight,  # 1-5
                     'evidence_chunk_id': None,  # Can be enriched later if needed
-                    'evidence': evidence  # [FIX 4] LLM이 추출한 근거 텍스트 저장
+                    'evidence': evidence  # LLM이 추출한 근거 텍스트 저장
                 })
 
         # Log statistics
