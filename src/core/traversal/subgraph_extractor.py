@@ -165,24 +165,21 @@ class SubgraphExtractor:
                     'target': edge_target,
                     'predicate': rel['predicate'],
                     'confidence': rel['confidence'],
-                    'relation_type': rel.get('relation_type', 'FLOW'),
-                    'weight': rel.get('weight', 3)
+                    'evidence': rel.get('evidence')
                 })
 
-                # Log edge discovery with relation type and weight
+                # Log edge discovery
                 if node_data and next_data:
                     source_term = node_data['term']
-                    rel_type = rel.get('relation_type', 'FLOW')
-                    weight = rel.get('weight', 3)
                     if edge_source == current_id:
                         traversal_log.append(
                             f"  ✅ {source_term} → [{rel['predicate']}] → {next_term} "
-                            f"({rel_type}, weight={weight}, conf={rel['confidence']:.2f})"
+                            f"(conf={rel['confidence']:.2f})"
                         )
                     else:
                         traversal_log.append(
                             f"  ✅ {next_term} → [{rel['predicate']}] → {source_term} "
-                            f"({rel_type}, weight={weight}, conf={rel['confidence']:.2f})"
+                            f"(conf={rel['confidence']:.2f})"
                         )
 
                 # Queue next node for next level
@@ -258,8 +255,7 @@ class SubgraphExtractor:
                     'target': target_id,
                     'predicate': rel['predicate'],
                     'confidence': rel['confidence'],
-                    'relation_type': rel.get('relation_type', 'FLOW'),
-                    'weight': rel.get('weight', 3)
+                    'evidence': rel.get('evidence')
                 })
 
         # Incoming edges
@@ -280,8 +276,7 @@ class SubgraphExtractor:
                     'target': term_id,
                     'predicate': rel['predicate'],
                     'confidence': rel['confidence'],
-                    'relation_type': rel.get('relation_type', 'FLOW'),
-                    'weight': rel.get('weight', 3)
+                    'evidence': rel.get('evidence')
                 })
 
         logger.info(f"Ego network: {len(nodes)} nodes, {len(edges)} edges")
@@ -322,11 +317,10 @@ class SubgraphExtractor:
                     target_term_id,
                     predicate,
                     confidence,
-                    relation_type,
-                    weight
+                    evidence
                 """)\
                 .eq("predicate", predicate)\
-                .order("weight", desc=False)\
+                .order("confidence", desc=True)\
                 .limit(limit)\
                 .execute()
 
@@ -352,8 +346,7 @@ class SubgraphExtractor:
                     'target': e['target_term_id'],
                     'predicate': e['predicate'],
                     'confidence': e['confidence'],
-                    'relation_type': e.get('relation_type', 'FLOW'),
-                    'weight': e.get('weight', 3)
+                    'evidence': e.get('evidence')
                 }
                 for e in edges
             ]
@@ -450,13 +443,13 @@ class SubgraphExtractor:
         term_id: str,
         min_confidence: float
     ) -> List[Dict]:
-        """Get all outgoing edges from a node, sorted by weight (priority)"""
+        """Get all outgoing edges from a node"""
         try:
             result = self.client.table(self.table_relations)\
-                .select("target_term_id, predicate, confidence, relation_type, weight")\
+                .select("target_term_id, predicate, confidence, evidence")\
                 .eq("source_term_id", term_id)\
                 .gte("confidence", min_confidence)\
-                .order("weight", desc=False)\
+                .order("confidence", desc=True)\
                 .execute()
 
             return result.data
@@ -470,13 +463,13 @@ class SubgraphExtractor:
         term_id: str,
         min_confidence: float
     ) -> List[Dict]:
-        """Get all incoming edges to a node, sorted by weight (priority)"""
+        """Get all incoming edges to a node"""
         try:
             result = self.client.table(self.table_relations)\
-                .select("source_term_id, predicate, confidence, relation_type, weight")\
+                .select("source_term_id, predicate, confidence, evidence")\
                 .eq("target_term_id", term_id)\
                 .gte("confidence", min_confidence)\
-                .order("weight", desc=False)\
+                .order("confidence", desc=True)\
                 .execute()
 
             return result.data
