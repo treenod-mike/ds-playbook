@@ -64,7 +64,7 @@
 - **bottlenecks**: A(재화 부족)가 B(진행)를 막음 (예: 다이아 부족 -> 부스터 사용)
 
 ### [비즈니스 인텔리전스 - 난이도와 행동]
-- **accelerates**: A(조건/상태)가 B(소모)를 가속화함 (예: 어려움 -> 재화 소모)
+- **accelerates**: A(조건/상태/난이도)가 B(재화 소모/행동 빈도)를 가속화함 (예: 고난이도 -> 클로버 소모 증가, 이벤트 -> 플레이 빈도 증가)
 - **induces**: A(난이도/조건)가 B(감정/행동)을 유발함 (예: 난이도 -> 좌절감)
 - **boosts**: A(행동)가 B(지표)를 폭발적으로 상승시킴 (예: 이벤트 참여 -> 인게이지먼트)
 - **guarantees**: A(행동)가 B(보상)를 확정 지급함 (예: 출석 7일 -> 다이아)
@@ -73,7 +73,18 @@
 ### [마케팅 퍼널 (Marketing Funnel)]
 - **utilizes**: A(마케팅)가 B(소재/이벤트)를 활용함 (예: TV CF -> 콜라보)
 - **acquires**: A(마케팅)가 B(유저층)을 획득함 (예: UA광고 -> NRU)
-- **converts_to**: A(지표)가 B(유저)로 전환됨 (예: 인스톨 -> NRU 진입)
+- **converts_to**: A(유저/재화)가 B(다른 유저 상태/재화)로 전환됨 (예: 첫결제 유저 -> PU(Paying User), 다이아 -> 골드, 신규 유저 -> 활성 유저)
+
+### [심화 비즈니스 로직 (Advanced Business Logic)]
+- **optimizes**: A(시스템/알고리즘)가 B(지표/경험)을 긍정적인 방향으로 조절함 (예: 개인화 알고리즘 -> 난이도 밸런스, 동적 가격 -> 매출, 추천 시스템 -> 전환율)
+- **diversifies**: A(시스템/요소)가 B(경험/패턴)을 다양하게 만듦 (예: AB테스트 -> 상점 UI, 랜덤 보상 -> 유저 경험, 개인화 이벤트 -> 콘텐츠)
+- **impacts**: A(변경/기능)가 B(행동/지표)에 긍정/부정 불명의 인과관계를 미침 (예: UI 변경 -> 조작감, 신규 콘텐츠 -> 기존 유저 행동, 밸런스 패치 -> 메타 게임)
+
+### [UX & Psychology - 플로우 이론]
+- **balances**: A(시스템)가 B(두 요소, 주로 실력과 난이도)의 균형을 맞춤 (예: DDA 시스템 -> 유저 실력과 난이도, 난이도 조절 -> 도전과 보상, 매칭 시스템 -> 팀 밸런스)
+- **induces**: A(환경/조건)가 B(심리 상태/감정)을 유발함 (예: 불합리한 난이도 -> 좌절감, 반복 플레이 -> 지루함, 연속 성공 -> 성취감)
+- **relieves**: A(아이템/시스템)가 B(부정적 경험)을 완화/해소함 (예: 힌트 아이템 -> 막힘, 보상 지급 -> 박탈감, 난이도 하향 -> 좌절감)
+- **maintains**: A(시스템/조건)가 B(긍정적 상태)를 지속시킴 (예: 적절한 난이도 -> 몰입, 보상 구조 -> 동기부여, 피드백 시스템 -> 성취감)
 
 ---
 
@@ -200,6 +211,21 @@
 >   {"source": "TV CF", "predicate": "boosts", "target": "인스톨", "confidence": 0.95, "evidence": "인스톨이 300% 폭증"},
 >   {"source": "TV CF", "predicate": "acquires", "target": "NRU", "confidence": 0.90, "evidence": "대규모의 NRU가 진입"},
 >   {"source": "인스톨", "predicate": "converts_to", "target": "NRU", "confidence": 0.85, "evidence": "덕분에 NRU가 진입"}
+> ]
+> ```
+
+**Case 11: 플로우 이론과 개인화 (Flow Theory & Personalization)**
+> *텍스트:* "유저 실력에 맞춘 동적 난이도 시스템은 획일적인 경험을 방지합니다. 이를 통해 유저별 경험을 다양화(diversify)하여, 너무 어려워서 좌절하거나 너무 쉬워서 지루해하는 현상을 최소화합니다. 결과적으로 지속적인 몰입(Flow) 상태를 유지시켜 리텐션을 극대화합니다."
+> *용어:* ["유저 실력", "동적 난이도", "경험", "좌절", "지루함", "몰입", "리텐션"]
+> *결과:*
+> ```json
+> [
+>   {"source": "동적 난이도", "predicate": "balances", "target": "유저 실력", "confidence": 0.95, "evidence": "유저 실력에 맞춘"},
+>   {"source": "동적 난이도", "predicate": "diversifies", "target": "경험", "confidence": 0.90, "evidence": "유저별 경험을 다양화하여"},
+>   {"source": "동적 난이도", "predicate": "relieves", "target": "좌절", "confidence": 0.90, "evidence": "너무 어려워서 좌절... 최소화"},
+>   {"source": "동적 난이도", "predicate": "relieves", "target": "지루함", "confidence": 0.90, "evidence": "너무 쉬워서 지루해하는... 최소화"},
+>   {"source": "동적 난이도", "predicate": "maintains", "target": "몰입", "confidence": 0.95, "evidence": "지속적인 몰입 상태를 유지"},
+>   {"source": "몰입", "predicate": "boosts", "target": "리텐션", "confidence": 0.95, "evidence": "리텐션을 극대화"}
 > ]
 > ```
 

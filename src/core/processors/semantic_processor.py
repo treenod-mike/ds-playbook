@@ -483,6 +483,12 @@ Extract semantic terms from this document."""
                 if not term:
                     continue
 
+                # [VALIDATION] Skip terms without relations
+                llm_relations = term_data.get('relations', [])
+                if not llm_relations or len(llm_relations) == 0:
+                    logger.warning(f"Skipping term '{term}' - no relations found (Phase 1 validation)")
+                    continue
+
                 # Find which chunks contain this term
                 evidence = []
                 frequency = 0
@@ -496,19 +502,32 @@ Extract semantic terms from this document."""
                         frequency += chunk_text.lower().count(term)
 
                 if frequency > 0:
-                    # Get relations from LLM response
-                    llm_relations = term_data.get('relations', [])
-
                     # Build raw_relations array (저장용 - JSONB 형식)
+                    # Note: llm_relations already retrieved earlier for validation
+
+                    # [OPTIMIZATION] Filter and limit relations
+                    MIN_RELATION_CONFIDENCE = 0.7  # 70% 이상만 저장
+                    MAX_RELATIONS_PER_TERM = 10    # 용어당 최대 10개
+
+                    # Sort by confidence descending
+                    sorted_relations = sorted(llm_relations, key=lambda x: x.get('confidence', 0), reverse=True)
+
                     raw_relations = []
-                    for rel in llm_relations:
+                    for rel in sorted_relations[:MAX_RELATIONS_PER_TERM]:
+                        confidence = rel.get('confidence', 0.8)
+
+                        # Skip low confidence relations
+                        if confidence < MIN_RELATION_CONFIDENCE:
+                            logger.debug(f"Skipping low confidence relation for '{term}': {rel.get('target', rel.get('term'))} (conf: {confidence:.2f})")
+                            continue
+
                         target_term = rel.get('term', '').lower().strip() if isinstance(rel.get('term'), str) else rel.get('target', '').lower().strip()
                         relation_type = rel.get('type', 'related_to')
 
                         raw_relations.append({
                             "target": target_term,
                             "type": relation_type,
-                            "confidence": rel.get('confidence', 0.8),
+                            "confidence": confidence,
                             "desc": rel.get('desc', '')
                         })
 
