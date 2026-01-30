@@ -129,9 +129,9 @@ class GraphRAGChatbot:
             if depth >= radius:
                 continue
 
-            # Outgoing edges (source)
+            # Outgoing edges (source) - evidence 정보 포함
             outgoing = self.supabase.table('playbook_semantic_relations')\
-                .select("id, source_term_id, target_term_id, predicate, confidence")\
+                .select("id, source_term_id, target_term_id, predicate, confidence, evidence, evidence_chunk_id")\
                 .eq("source_term_id", current_id)\
                 .gte("confidence", 0.5)\
                 .execute()
@@ -163,9 +163,9 @@ class GraphRAGChatbot:
 
                         queue.append((edge['target_term_id'], depth + 1, new_path))
 
-            # Incoming edges (target)
+            # Incoming edges (target) - evidence 정보 포함
             incoming = self.supabase.table('playbook_semantic_relations')\
-                .select("id, source_term_id, target_term_id, predicate, confidence")\
+                .select("id, source_term_id, target_term_id, predicate, confidence, evidence, evidence_chunk_id")\
                 .eq("target_term_id", current_id)\
                 .gte("confidence", 0.5)\
                 .execute()
@@ -226,7 +226,32 @@ class GraphRAGChatbot:
 
         node_map = {n['id']: n for n in nodes_result.data}
 
-        # Build reasoning chain
+        # [추가] 1. 수집된 엣지들에서 evidence_chunk_id 추출
+        chunk_ids = set()
+        for edge in visited_edges.values():
+            if edge.get('evidence_chunk_id'):
+                chunk_ids.add(edge['evidence_chunk_id'])
+
+        # [추가] 2. 실제 청크 텍스트 조회
+        evidence_map = {}
+        if chunk_ids:
+            try:
+                chunks_result = self.supabase.table('playbook_chunks')\
+                    .select("id, content, metadata, doc_id")\
+                    .in_("id", list(chunk_ids))\
+                    .execute()
+
+                for c in chunks_result.data:
+                    # 메타데이터에서 제목 추출 시도
+                    title = c.get('metadata', {}).get('title', 'Unknown Doc') if isinstance(c.get('metadata'), dict) else 'Unknown Doc'
+                    # 내용 미리보기 (100자)
+                    content_preview = c['content'][:100] + "..." if len(c['content']) > 100 else c['content']
+                    evidence_map[str(c['id'])] = f"[{title}] {content_preview}"
+            except Exception as e:
+                # 청크 조회 실패해도 계속 진행
+                print(f"   ⚠️ Evidence 청크 조회 실패: {e}")
+
+        # [수정] 3. Build reasoning chain with evidence text
         unique_edges = {}
         for edge in visited_edges.values():
             source_term = node_map.get(edge['source_term_id'], {}).get('term', '')
@@ -235,11 +260,22 @@ class GraphRAGChatbot:
             if source_term and target_term:
                 edge_key = f"{source_term}_{edge['predicate']}_{target_term}"
                 if edge_key not in unique_edges or edge['confidence'] > unique_edges[edge_key]['confidence']:
+                    # Evidence 텍스트 매핑
+                    evidence_text = ""
+                    if edge.get('evidence'):
+                        # DB에 evidence 텍스트가 있으면 사용
+                        evidence_text = edge['evidence']
+                    elif edge.get('evidence_chunk_id'):
+                        # 청크에서 조회한 텍스트 사용
+                        evidence_text = evidence_map.get(str(edge['evidence_chunk_id']), "")
+
                     unique_edges[edge_key] = {
                         'source': source_term,
                         'predicate': edge['predicate'],
                         'target': target_term,
-                        'confidence': edge['confidence']
+                        'confidence': edge['confidence'],
+                        'evidence_text': evidence_text,  # LLM에게 전달
+                        'evidence_chunk_id': edge.get('evidence_chunk_id')
                     }
 
         reasoning_chain = [
@@ -253,7 +289,8 @@ class GraphRAGChatbot:
             "unique_edges": list(unique_edges.values()),
             "reasoning_chain": reasoning_chain,
             "hop_paths": sorted(hop_paths, key=lambda x: (x['hop'], -x['confidence']))[:15],  # Top 15 paths
-            "traversal_log": traversal_log
+            "traversal_log": traversal_log,
+            "chunks": list(chunk_ids)  # v3에서 SearchResult 변환에 사용
         }
 
     def build_graph_context(self, mentioned_terms, subgraph):
@@ -291,11 +328,15 @@ class GraphRAGChatbot:
         for node in list(unique_nodes.values())[:15]:
             context += f"- {node['term']} ({node['category']})\n"
 
-        # 4. 실제 관계
+        # 4. 실제 관계 (Evidence 포함)
         if subgraph['unique_edges']:
             context += f"\n**관계** (실제 데이터, 중복 제거, {len(subgraph['unique_edges'])}개):\n"
             for edge in subgraph['unique_edges'][:20]:
-                context += f"- {edge['source']} → {edge['predicate']} → {edge['target']} (신뢰도: {edge['confidence']:.2f})\n"
+                relation_str = f"- {edge['source']} → {edge['predicate']} → {edge['target']} (신뢰도: {edge['confidence']:.2f})"
+                # Evidence 텍스트가 있으면 추가
+                if edge.get('evidence_text'):
+                    relation_str += f"\n  근거: \"{edge['evidence_text'][:150]}...\""
+                context += relation_str + "\n"
 
         # 5. 추론 체인 (가독성 높은 형태)
         if subgraph['reasoning_chain']:

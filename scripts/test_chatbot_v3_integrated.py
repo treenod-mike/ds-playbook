@@ -140,9 +140,9 @@ class GraphRAGChatbotV3:
             if depth >= radius:
                 continue
 
-            # Outgoing edges (source)
+            # Outgoing edges (source) - evidence 정보 포함
             outgoing = self.supabase.table('playbook_semantic_relations')\
-                .select("id, source_term_id, target_term_id, predicate, confidence")\
+                .select("id, source_term_id, target_term_id, predicate, confidence, evidence, evidence_chunk_id")\
                 .eq("source_term_id", current_id)\
                 .gte("confidence", 0.5)\
                 .execute()
@@ -173,9 +173,9 @@ class GraphRAGChatbotV3:
 
                         queue.append((edge['target_term_id'], depth + 1, new_path))
 
-            # Incoming edges (target)
+            # Incoming edges (target) - evidence 정보 포함
             incoming = self.supabase.table('playbook_semantic_relations')\
-                .select("id, source_term_id, target_term_id, predicate, confidence")\
+                .select("id, source_term_id, target_term_id, predicate, confidence, evidence, evidence_chunk_id")\
                 .eq("target_term_id", current_id)\
                 .gte("confidence", 0.5)\
                 .execute()
@@ -236,7 +236,32 @@ class GraphRAGChatbotV3:
 
         node_map = {n['id']: n for n in nodes_result.data}
 
-        # Build reasoning chain
+        # [추가] 1. 수집된 엣지들에서 evidence_chunk_id 추출
+        chunk_ids_from_evidence = set()
+        for edge in visited_edges.values():
+            if edge.get('evidence_chunk_id'):
+                chunk_ids_from_evidence.add(edge['evidence_chunk_id'])
+
+        # [추가] 2. 실제 청크 텍스트 조회
+        evidence_map = {}
+        if chunk_ids_from_evidence:
+            try:
+                chunks_result = self.supabase.table('playbook_chunks')\
+                    .select("id, content, metadata, doc_id")\
+                    .in_("id", list(chunk_ids_from_evidence))\
+                    .execute()
+
+                for c in chunks_result.data:
+                    # 메타데이터에서 제목 추출 시도
+                    title = c.get('metadata', {}).get('title', 'Unknown Doc') if isinstance(c.get('metadata'), dict) else 'Unknown Doc'
+                    # 내용 미리보기 (100자)
+                    content_preview = c['content'][:100] + "..." if len(c['content']) > 100 else c['content']
+                    evidence_map[str(c['id'])] = f"[{title}] {content_preview}"
+            except Exception as e:
+                # 청크 조회 실패해도 계속 진행
+                print(f"   ⚠️ Evidence 청크 조회 실패: {e}")
+
+        # [수정] 3. Build reasoning chain with evidence text
         unique_edges = {}
         for edge in visited_edges.values():
             source_term = node_map.get(edge['source_term_id'], {}).get('term', '')
@@ -245,11 +270,22 @@ class GraphRAGChatbotV3:
             if source_term and target_term:
                 edge_key = f"{source_term}_{edge['predicate']}_{target_term}"
                 if edge_key not in unique_edges or edge['confidence'] > unique_edges[edge_key]['confidence']:
+                    # Evidence 텍스트 매핑
+                    evidence_text = ""
+                    if edge.get('evidence'):
+                        # DB에 evidence 텍스트가 있으면 사용
+                        evidence_text = edge['evidence']
+                    elif edge.get('evidence_chunk_id'):
+                        # 청크에서 조회한 텍스트 사용
+                        evidence_text = evidence_map.get(str(edge['evidence_chunk_id']), "")
+
                     unique_edges[edge_key] = {
                         'source': source_term,
                         'predicate': edge['predicate'],
                         'target': target_term,
-                        'confidence': edge['confidence']
+                        'confidence': edge['confidence'],
+                        'evidence_text': evidence_text,  # LLM에게 전달
+                        'evidence_chunk_id': edge.get('evidence_chunk_id')
                     }
 
         reasoning_chain = [
@@ -313,7 +349,7 @@ class GraphRAGChatbotV3:
         return results
 
     def _convert_edges_to_graph_relations(self, subgraph):
-        """서브그래프의 edges를 GraphRelation 객체 리스트로 변환"""
+        """서브그래프의 edges를 GraphRelation 객체 리스트로 변환 (evidence 포함)"""
         relations = []
 
         # unique_edges 사용 (중복 제거된 관계)
@@ -322,7 +358,8 @@ class GraphRAGChatbotV3:
                 source=edge['source'],
                 predicate=edge['predicate'],
                 target=edge['target'],
-                confidence=edge['confidence']
+                confidence=edge['confidence'],
+                evidence=edge.get('evidence_text', '')  # Evidence 텍스트 포함
             ))
 
         return relations
