@@ -21,17 +21,18 @@ v3.0 시스템 통합이 완료되었으며, 모든 핵심 컴포넌트가 정�
 
 ## 🗂️ 시스템 현황
 
-### 데이터베이스 상태 (2026-01-30 기준)
+### 데이터베이스 상태 (2026-01-30 업데이트)
 
 | 테이블 | 행 수 | 설명 |
 |--------|-------|------|
-| playbook_documents | 184 | Confluence 문서 메타데이터 |
-| playbook_chunks | 194 | 텍스트 청크 + 임베딩 |
-| playbook_semantic_terms | 185 | 추출된 용어 (11개 카테고리) |
-| playbook_semantic_relations | 0 | **⚠️ 관계 데이터 없음** |
+| playbook_documents | 263 | Confluence 문서 메타데이터 |
+| playbook_chunks | 275 | 텍스트 청크 + 임베딩 |
+| playbook_semantic_terms | 262 | 추출된 용어 (11개 카테고리) |
+| playbook_semantic_relations | **35** | **✅ 관계 데이터 생성 완료** |
+| └─ With Evidence | **35 (100%)** | **✅ 모든 관계에 근거 포함** |
 | playbook_ontology_rules | 90 | v2.0 온톨로지 룰 |
 
-**주의**: `playbook_semantic_relations`가 비어있습니다. Phase 2를 실행하여 관계를 생성해야 합니다.
+**업데이트**: Phase 2 실행 완료! 35개 관계가 생성되었으며, 모든 관계에 evidence가 포함되어 있습니다.
 
 ### 온톨로지 v2.0 구성
 
@@ -184,16 +185,17 @@ v3.0 Integration Test - Component Verification
 
 ## ⚠️ 현재 제한 사항
 
-### 1. 관계 데이터 부족
-- **문제**: `playbook_semantic_relations` 테이블이 비어있음
-- **영향**:
-  - 그래프 탐색 기능 비활성
-  - "관계 분석" 섹션 비어있음
-  - 추론 기반 답변 불가
-- **해결**: Phase 2 실행 필요
+### ~~1. 관계 데이터 부족~~ ✅ 해결됨!
+- ~~**문제**: `playbook_semantic_relations` 테이블이 비어있음~~
+- **✅ 해결**: Phase 2 실행 완료
   ```bash
-  bash run_phase2_test.sh
+  python3 run_phase2_only.py  # 완료
   ```
+- **결과**:
+  - ✅ 35개 관계 생성
+  - ✅ 모든 관계에 evidence 포함 (100%)
+  - ✅ 그래프 탐색 기능 활성화
+  - ✅ "관계 분석" 섹션 정상 작동
 
 ### 2. 벡터 검색 미활용
 - **문제**: 현재 ILIKE 기반 텍스트 매칭 사용
@@ -210,20 +212,25 @@ v3.0 Integration Test - Component Verification
 
 ## 🚀 다음 단계
 
-### 1. Phase 2 실행 (우선순위: 높음)
-```bash
+### ~~1. Phase 2 실행~~ ✅ 완료!
+~~```bash
 bash run_phase2_test.sh
+```~~
+
+**✅ 완료**: 관계 데이터 생성
+- ✅ 35개 관계 생성 (90개 문서 기준)
+- ✅ 모든 관계에 evidence 포함 (100%)
+- ✅ "관계 분석" 섹션 활성화
+- ✅ 그래프 기반 추론 가능
+
+**Evidence 샘플**:
+```python
+{
+  "predicate": "rewards",
+  "confidence": 0.96,
+  "evidence": "챕터 클리어 보상"
+}
 ```
-
-**목표**: 관계 데이터 생성
-- LLM 기반 관계 추출
-- Confidence 계산
-- playbook_semantic_relations 테이블 채우기
-
-**예상 결과**:
-- 관계 수: ~500-1000개 (문서 184개 기준)
-- "관계 분석" 섹션 활성화
-- 그래프 기반 추론 가능
 
 ### 2. 벡터 검색 구현 (우선순위: 중간)
 - OpenAI Embedding API 활용
