@@ -149,18 +149,37 @@ class OntologyBuilder:
             Number of terms loaded
         """
         try:
-            query = self.supabase.client.table('playbook_semantic_terms').select(
-                'id,doc_id,term,category,definition,frequency,confidence,raw_relations'
-            )
+            # Load all terms with pagination to avoid 1000 record limit
+            all_terms = []
+            page_size = 1000
+            page = 0
 
-            if doc_ids:
-                query = query.in_('doc_id', doc_ids)
+            logger.info("Loading semantic terms with pagination...")
 
-            response = query.execute()
-            terms = response.data if hasattr(response, 'data') else []
+            while True:
+                query = self.supabase.client.table('playbook_semantic_terms').select(
+                    'id,doc_id,term,category,definition,frequency,confidence,raw_relations'
+                ).range(page * page_size, (page + 1) * page_size - 1)
+
+                if doc_ids:
+                    query = query.in_('doc_id', doc_ids)
+
+                response = query.execute()
+                batch = response.data if hasattr(response, 'data') else []
+
+                if not batch:
+                    break
+
+                all_terms.extend(batch)
+                logger.info(f"Loaded page {page + 1}: {len(batch)} terms (total: {len(all_terms)})")
+                page += 1
+
+                # Stop if we got less than a full page (means we're done)
+                if len(batch) < page_size:
+                    break
 
             # Index by document, ID, and term name
-            for term in terms:
+            for term in all_terms:
                 self.terms_by_doc[term['doc_id']].append(term)
                 self.terms_by_id[term['id']] = term
 
@@ -179,9 +198,9 @@ class OntologyBuilder:
                         if not existing or term.get('frequency', 0) > existing.get('frequency', 0):
                             self.global_term_candidates[normalized_term] = term
 
-            logger.info(f"Loaded {len(terms)} semantic terms from {len(self.terms_by_doc)} documents")
+            logger.info(f"Loaded {len(all_terms)} semantic terms from {len(self.terms_by_doc)} documents")
             logger.info(f"Built {len(self.global_term_candidates)} global term candidates for cross-document matching")
-            return len(terms)
+            return len(all_terms)
 
         except Exception as e:
             logger.error(f"Failed to load semantic terms: {e}")
