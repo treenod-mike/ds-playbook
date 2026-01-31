@@ -39,12 +39,12 @@ export function MessageInput({ onSend, disabled = false }: MessageInputProps) {
         onChange={(e) => setInput(e.target.value)}
         onKeyDown={handleKeyDown}
         disabled={disabled}
-        className="flex-1 bg-slate-800 border-slate-600 text-white placeholder:text-slate-500"
+        className="flex-1 bg-white border-gray-300"
       />
       <Button
         onClick={handleSend}
         disabled={disabled || !input.trim()}
-        className="bg-blue-600 hover:bg-blue-700"
+        className="bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white"
       >
         <Send className="h-4 w-4" />
       </Button>

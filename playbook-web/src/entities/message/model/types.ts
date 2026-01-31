@@ -26,6 +26,12 @@ export interface SearchProcess {
   nodes_count: number
   edges_count: number
   traversal_log?: string[]
+  reasoning_chain?: string[]
+  chunks_referenced?: Array<{
+    chunk_id: string
+    content: string
+    relevance_score?: number
+  }>
 }
 
 export interface ChatRequest {

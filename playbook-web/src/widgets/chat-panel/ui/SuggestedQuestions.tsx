@@ -21,7 +21,7 @@ const SUGGESTED_QUESTIONS = [
 export function SuggestedQuestions({ onSelect }: SuggestedQuestionsProps) {
   return (
     <div className="space-y-2">
-      <p className="text-xs text-slate-500 font-medium">💡 추천 질문</p>
+      <p className="text-xs text-gray-600 font-medium">💡 추천 질문</p>
       <div className="flex flex-wrap gap-2">
         {SUGGESTED_QUESTIONS.map((question, idx) => (
           <Button
@@ -29,7 +29,7 @@ export function SuggestedQuestions({ onSelect }: SuggestedQuestionsProps) {
             variant="outline"
             size="sm"
             onClick={() => onSelect(question)}
-            className="bg-slate-800 border-slate-600 hover:bg-slate-700 text-slate-300 text-xs"
+            className="bg-white border-gray-300 hover:bg-gray-50 text-gray-700 text-xs"
           >
             {question}
           </Button>

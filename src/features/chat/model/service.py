@@ -67,7 +67,8 @@ class ChatService:
             "nodes_count": 0,
             "edges_count": 0,
             "chunks_referenced": [],
-            "traversal_log": []
+            "traversal_log": [],
+            "reasoning_chain": []
         }
 
         if use_graph:
@@ -199,6 +200,9 @@ class ChatService:
                 unique_edges = self._deduplicate_edges(subgraph['edges'], node_map)
                 reasoning_chain = self._build_reasoning_chain(unique_edges)
 
+                # Add reasoning chain to search process
+                search_process["reasoning_chain"] = reasoning_chain
+
                 # Build context for LLM
                 graph_context = self._build_graph_context(
                     center_term,
@@ -209,7 +213,7 @@ class ChatService:
 
                 step7_description = "온톨로지 룰과 관계 데이터를 기반으로 AI 응답 생성 중..."
                 if reasoning_chain:
-                    step7_description += f"\n추론 체인: {' | '.join(reasoning_chain)}"
+                    step7_description += f"\n추론 체인: {' | '.join(reasoning_chain[:3])}"
 
                 search_process["steps"].append({
                     "step": 7,

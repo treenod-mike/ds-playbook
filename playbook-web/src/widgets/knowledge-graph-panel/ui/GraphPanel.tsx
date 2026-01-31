@@ -103,7 +103,13 @@ export default function KnowledgeGraph({ data, onNodeClick }: KnowledgeGraphProp
                 {isCenterNode && '🎯 '}
                 {node.label}
               </div>
-              <div className="text-xs opacity-75">{category}</div>
+              <div className={`text-xs font-medium mt-1 px-2 py-0.5 rounded ${
+                isCenterNode
+                  ? 'bg-orange-600 bg-opacity-50'
+                  : 'bg-black bg-opacity-30'
+              }`}>
+                {category}
+              </div>
             </div>
           ),
           category,
@@ -118,7 +124,7 @@ export default function KnowledgeGraph({ data, onNodeClick }: KnowledgeGraphProp
           padding: isCenterNode ? '12px' : '8px',
           fontSize: isCenterNode ? '14px' : '12px',
           width: 'auto',
-          minWidth: isCenterNode ? '160px' : '120px',
+          minWidth: isCenterNode ? '160px' : '130px',
           boxShadow: isCenterNode ? '0 4px 20px rgba(245, 158, 11, 0.5)' : 'none',
           zIndex: isCenterNode ? 10 : 1,
         },
@@ -264,17 +270,39 @@ export default function KnowledgeGraph({ data, onNodeClick }: KnowledgeGraphProp
         )}
 
         {/* 범례 (Legend) */}
-        <Panel position="bottom-right" className="bg-slate-800 border border-slate-700 rounded-lg p-2">
+        <Panel position="bottom-right" className="bg-slate-800 border border-slate-700 rounded-lg p-3 max-h-96 overflow-y-auto">
           <div className="text-xs text-slate-400">
-            <div className="font-semibold mb-2">범례</div>
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-green-500"></div>
-                <span>신뢰도 높음 (&gt;0.9)</span>
+            <div className="font-semibold mb-2 text-slate-200">📌 범례</div>
+
+            {/* 노드 카테고리 */}
+            <div className="mb-3">
+              <div className="text-[11px] font-semibold text-slate-300 mb-1.5">노드 카테고리</div>
+              <div className="space-y-1">
+                {Object.entries(CATEGORY_COLORS).map(([category, color]) => (
+                  <div key={category} className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded" style={{ backgroundColor: color }}></div>
+                    <span className="text-[11px]">{category}</span>
+                  </div>
+                ))}
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded bg-orange-500"></div>
+                  <span className="text-[11px]">중심 노드 🎯</span>
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
-                <span>신뢰도 보통</span>
+            </div>
+
+            {/* 엣지 신뢰도 */}
+            <div className="pt-2 border-t border-slate-700">
+              <div className="text-[11px] font-semibold text-slate-300 mb-1.5">엣지 신뢰도</div>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                  <span className="text-[11px]">신뢰도 높음 (&gt;0.9)</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
+                  <span className="text-[11px]">신뢰도 보통 (≤0.9)</span>
+                </div>
               </div>
             </div>
           </div>

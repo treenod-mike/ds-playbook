@@ -65,7 +65,7 @@ export default function ChatInterface() {
   }
 
   return (
-    <div className="flex h-screen bg-slate-950 overflow-hidden">
+    <div className="flex h-screen bg-gradient-to-br from-blue-50 to-purple-50 overflow-hidden">
       {/* Chat Panel - 40% */}
       <ChatPanel
         messages={messages}
