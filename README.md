@@ -13,6 +13,7 @@ Playbook Nexus는 전통적인 RAG를 넘어선 **GraphRAG(Graph-based Retrieval
   - [핵심 개선사항 (2025-01-21)](#핵심-개선사항-2025-01-21-update-)
 - [Phase 3: Graph Traversal](#phase-3-graph-traversal-그래프-탐색) 🆕
 - [FastAPI 서버 배포](#-fastapi-서버-배포) 🆕
+- [외부 플랫폼 통합 (MCP/REST/SDK)](#외부-플랫폼-통합-mcprestsdk) 🆕
 - [설치 및 설정](#설치-및-설정)
 - [사용법](#사용법)
 - [데이터베이스 스키마](#데이터베이스-스키마)
@@ -105,7 +106,7 @@ A: [GraphRAG 분석]
 1. **playbook_documents**: Confluence 원본 문서 (제목, URL, 메타데이터)
 2. **playbook_chunks**: 텍스트 청크 + OpenAI 임베딩 (1536차원)
 3. **playbook_semantic_terms**: 추출된 용어 (예: "폭탄", "클로버") + 카테고리
-4. **playbook_ontology_rules**: AI 환각 방지 규칙 (예: `Mechanic triggers GameObject`)
+4. **playbook_ontology_rules**: AI 환각 방지 규칙 145개 (v3.0) - 예: `Mechanic triggers GameObject`
 5. **playbook_semantic_relations**: 실제 관계 (예: "4매치" --triggers--> "폭탄")
 
 ---
@@ -119,7 +120,7 @@ A: [GraphRAG 분석]
 - ✅ **동의어 처리**: "클로버" = "하트" = "스태미나" 자동 통합
 
 ### Phase 2: Graph Construction (그래프 구축)
-- ✅ **온톨로지 기반 검증**: 10개 게임 규칙으로 AI 환각 방지
+- ✅ **온톨로지 기반 검증**: 145개 게임 규칙으로 AI 환각 방지 (v3.0)
 - ✅ **Confidence Scoring**: 4단계 명확한 기준 (0.9-1.0/0.7-0.9/0.5-0.7/<0.5)
 - ✅ **Negative Examples**: 3가지 추출 금지 케이스 명시
 - ✅ **Evidence Tracking**: 모든 관계가 원문 근거 보유
@@ -1261,6 +1262,130 @@ curl "https://your-api-url.com/api/shortest-path?start=폭탄&end=체리"
 
 ---
 
+## 외부 플랫폼 통합 (MCP/REST/SDK)
+
+Playbook Nexus의 GraphRAG 엔진을 다른 플랫폼이나 애플리케이션에 통합할 수 있습니다.
+
+**통합 가이드**: [`GAMEBOARD_INTEGRATION.md`](GAMEBOARD_INTEGRATION.md)
+
+### Option 1: MCP Server (Model Context Protocol)
+
+Claude Desktop, Cline, 또는 기타 Claude 기반 플랫폼용 MCP 서버로 통합합니다.
+
+**사용 사례**:
+- Claude Desktop에서 지식 그래프 검색
+- Cline IDE 플러그인으로 코드 컨텍스트 강화
+- Claude API 기반 챗봇에 도메인 지식 제공
+
+**제공 기능**:
+```typescript
+// MCP Tools
+- search_playbook_knowledge: 용어 기반 검색
+- explore_term_relations: 용어의 관계 탐색
+- find_relation_path: 두 용어 간 경로 찾기
+```
+
+**설정 방법**:
+```json
+// Claude Desktop: ~/Library/Application Support/Claude/claude_desktop_config.json
+{
+  "mcpServers": {
+    "playbook-nexus": {
+      "command": "python",
+      "args": ["-m", "playbook_nexus.mcp_server"],
+      "env": {
+        "SUPABASE_URL": "your-url",
+        "SUPABASE_KEY": "your-key"
+      }
+    }
+  }
+}
+```
+
+### Option 2: REST API (범용 HTTP 통합)
+
+FastAPI 서버를 통해 어떤 플랫폼에서든 HTTP로 접근 가능합니다.
+
+**사용 사례**:
+- 웹 애플리케이션에서 AJAX 호출
+- 모바일 앱에서 지식 그래프 조회
+- 다른 백엔드 서비스와 연동
+
+**API 엔드포인트**:
+```bash
+POST /api/search              # 의미 기반 검색
+GET  /api/terms/{term}/relations  # 용어 관계 조회
+POST /api/paths               # 경로 탐색
+POST /api/impact-analysis     # 영향 분석
+POST /api/subgraph            # 서브그래프 추출
+```
+
+**사용 예시 (Python)**:
+```python
+import requests
+
+# 검색
+response = requests.post(
+    "https://your-api.com/api/search",
+    json={"query": "폭탄의 효과는?", "limit": 10}
+)
+results = response.json()
+
+# 관계 탐색
+response = requests.get(
+    "https://your-api.com/api/terms/폭탄/relations"
+)
+relations = response.json()
+```
+
+### Option 3: Python SDK (직접 라이브러리 통합)
+
+Python 코드에서 직접 GraphRAG 클래스를 임포트하여 사용합니다.
+
+**사용 사례**:
+- Python 기반 백엔드 서비스에 통합
+- Jupyter Notebook에서 분석 수행
+- 커스텀 데이터 파이프라인 구축
+
+**사용 예시**:
+```python
+from playbook_nexus import PlaybookGraphRAG
+
+# 초기화
+graph = PlaybookGraphRAG(
+    supabase_url="your-url",
+    supabase_key="your-key"
+)
+
+# 검색
+results = graph.search("폭탄", limit=10)
+
+# 관계 탐색
+relations = graph.get_relations("폭탄", max_depth=2)
+
+# 경로 찾기
+path = graph.find_path(source="폭탄", target="체리")
+```
+
+### 통합 시 주의사항
+
+1. **Role 분리**:
+   - LLM (Claude, GPT 등)이 추론과 응답 생성 담당
+   - GraphRAG는 사실 기반 데이터만 제공
+
+2. **동일한 검색 엔진**:
+   - 모든 통합 옵션이 동일한 그래프 탐색 로직 사용
+   - 차이는 데이터 전달 방식뿐
+
+3. **성능 고려**:
+   - REST API는 네트워크 오버헤드 존재
+   - Python SDK는 직접 호출로 가장 빠름
+   - MCP는 Claude 통합에 최적화
+
+**상세 내용**: [`GAMEBOARD_INTEGRATION.md`](GAMEBOARD_INTEGRATION.md)
+
+---
+
 ### 실행 흐름
 
 #### Phase 1: Semantic Extraction
@@ -2305,6 +2430,69 @@ CREATE INDEX idx_playbook_semantic_relations_target_pred
 
 ## 변경 이력
 
+### 2026-02-01: v3.0 온톨로지 확장 및 Phase 2 최적화 🚀
+
+**주요 성과**:
+- ✅ **관계 생성 536% 증가**: 735개 → **4,676개**
+- ✅ **연결성 81.77% 달성**: 5,665개 용어 중 4,676개 관계 생성
+- ✅ **온톨로지 규칙 145개**: 29개 신규 규칙 추가 (116개 → 145개)
+- ✅ **1,403개 문서 처리**: Phase 2 pagination 도입으로 전체 데이터 처리 (10.8분)
+
+**1. Phase 2 Pagination 최적화**
+- **문제**: Phase 2가 1,000개 용어만 로드하는 버그 발견
+- **해결**: `ontology_builder.py` 페이지네이션 루프 도입
+- **코드 위치**: [`ontology_builder.py:141-207`](src/core/processors/ontology_builder.py#L141-L207)
+- **결과**: 5,665개 전체 용어 로드 및 관계 생성
+
+```python
+# Before: 1,000개 제한
+response = supabase.client.table('playbook_semantic_terms').select('*').limit(1000).execute()
+
+# After: 전체 로드 (pagination)
+while True:
+    query = supabase.client.table('playbook_semantic_terms').select('*') \
+        .range(page * page_size, (page + 1) * page_size - 1)
+    response = query.execute()
+    if not response.data or len(response.data) < page_size:
+        break
+    all_terms.extend(response.data)
+    page += 1
+```
+
+**2. v3.0 온톨로지 규칙 확장**
+- **마이그레이션**: [`20260201_v3_pokopoko_game_logic.sql`](supabase/migrations/20260201_v3_pokopoko_game_logic.sql)
+- **추가된 규칙 29개** (Phase 2 로그 분석 기반):
+  - `REWARDS` 관계 14개 (보상 시스템)
+  - `CONTAINS` 관계 2개 (포함 관계)
+  - `REQUIRES` 관계 11개 (필요 조건)
+  - `CONSUMES` 관계 2개 (소비)
+  - `SYNERGIZES_WITH` 관계 1개 (시너지)
+
+**3. 외부 통합 준비 (GAMEBOARD 프로젝트)**
+- **통합 가이드**: [`GAMEBOARD_INTEGRATION.md`](GAMEBOARD_INTEGRATION.md)
+- **3가지 통합 옵션**:
+  - Option 1: MCP Server (Claude 기반 플랫폼용)
+  - Option 2: REST API (범용 HTTP 통합)
+  - Option 3: Python SDK (직접 라이브러리 통합)
+
+**4. 품질 분석 도구 추가**
+- **스크립트**: [`analyze_orphan_terms.py`](scripts/analyze_orphan_terms.py)
+- **기능**: 관계 없는 용어 탐지 및 품질 개선 권고
+
+**Phase 2 실행 결과**:
+```bash
+python3 src/core/processors/ontology_builder.py
+
+✅ 처리 문서: 1,403개
+✅ 생성된 관계: 4,676개
+✅ 처리 시간: 10.8분
+✅ 연결성: 81.77% (4,676 / 5,665)
+```
+
+**Git Commit**: `79c863f` - feat: Phase 2 pagination 및 v3.0 온톨로지 확장
+
+---
+
 ### 2025-01-22: Graph Traversal 기능 추가 (Phase 3) 🆕
 
 **주요 변경사항**:
@@ -2491,16 +2679,30 @@ Forbidden predicates (should be 0):
 
 ### 통계 요약
 
-**Phase 1 (Semantic Extraction)**:
+**현재 지식 그래프 상태 (v3.0, 2026-02-01)**:
+- 📄 **문서**: 1,403개 처리 완료
+- 🏷️ **용어**: 5,665개 (playbook_semantic_terms)
+- 🔗 **관계**: 4,676개 (playbook_semantic_relations)
+- 📊 **연결성**: 81.77% (5,665개 용어 중 4,676개 관계)
+- 📚 **온톨로지 규칙**: 145개 (v3.0)
+- ⚡ **처리 시간**: 10.8분 (Phase 2)
+
+**Phase 1 (Semantic Extraction)** - 초기 테스트:
 - 50 pages → 413 semantic terms → 116 chunks
 - 100% success rate
 - Definition 완성도: 100%
 
-**Phase 2 (Knowledge Graph)**:
+**Phase 2 (Knowledge Graph)** - 초기 테스트:
 - 46 documents → 299 raw_relations → 50 validated relations
 - Match rate: ~17% (299 → 50)
 - Forbidden predicates: 0
 - Evidence tracking: 100%
+
+**Phase 2 (Knowledge Graph)** - 전체 실행 (v3.0):
+- 1,403 documents → **4,676 validated relations**
+- 연결성: **81.77%** (목표 30-50% 대비 초과 달성)
+- 처리 시간: 10.8분
+- Ontology rules: 145개 (29개 신규 추가)
 
 **매칭 방식**:
 - exact_local: 64%
